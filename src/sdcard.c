@@ -29,7 +29,7 @@
 
 #define MMCSD_MAX_BLOCK_SIZE 512
 
-enum MMCSD_err {
+enum MMCSD_err_e {
 	MMCSD_GOODEC = 0,
 	MMCSD_IDLE = 0x01,
 	MMCSD_ERASE_RESET = 0x02,
@@ -40,6 +40,8 @@ enum MMCSD_err {
 	MMCSD_PARAM_ERR = 0x40,
 	RESP_TIMEOUT = 0x80
 };
+
+typedef enum MMCSD_err_e MMCSD_err;
 
 short g_CRC_enabled;
 short g_MMCSDBufferChanged;
