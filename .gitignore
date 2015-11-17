@@ -222,7 +222,6 @@ pip-log.txt
 *.hex
 *.lst
 *.xsym
-*.DSN
 *.PWI
 *.xlsx
 *.DBK
