@@ -5,10 +5,10 @@
  *      Author: cuki
  */
 
-#include <18F45K22.h>
+#include <18F25K22.h>
 
 #fuses HSH,NOPLLEN
-#use delay(clock=15MHz)
+#use delay(clock=25MHz)
 #use rs232(baud=9600, UART1)
 
 #include <stdlib.h>
@@ -28,18 +28,22 @@
 
 int main(void) {
 
-	BYTE value, cmd;
+	BYTE value, cmd, r;
 	int32 address;
 
 	printf("\r\n\nex_mmcsd.c\r\n\n");
 
-	if (mmcsd_init()) {
-		printf("Could not init the MMC/SD!!!!");
-		while (TRUE)
-			;
-	}
-
 	do {
+		r = mmcsd_init();
+		if (r) {
+			printf("\r\nCould not init the MMC/SD!!!!%d", r);
+			delay_ms(1000);
+		}
+	} while (r);
+
+	mmcsd_print_cid();
+
+	while (TRUE) {
 		do {
 			printf("\r\nRead or Write: ");
 			cmd = getc();
@@ -64,6 +68,6 @@ int main(void) {
 			mmcsd_write_byte(address, value);
 			mmcsd_flush_buffer();
 		}
-	} while (TRUE);
+	}
 	return 0;
 }

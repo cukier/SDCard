@@ -8,7 +8,7 @@
 #include <18F252.h>
 
 #fuses HS
-#use delay(clock=25MHz)
+#use delay(clock=4MHz)
 #use rs232(baud=9600, UART1)
 
 #include "sdcard.c"
@@ -17,7 +17,7 @@ int main(void) {
 	int r;
 
 	printf("\r\n\nex_mmcsd.c");
-	setup_spi(SPI_MASTER | SPI_L_TO_H | SPI_XMIT_L_TO_H | SPI_CLK_DIV_64);
+	setup_spi(SPI_MASTER | SPI_H_TO_L | SPI_CLK_DIV_4);
 
 	do {
 		r = init_sd();
