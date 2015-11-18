@@ -1,7 +1,7 @@
 CC=ccsc
 PK2=pk2cmd
 
-DEVICE=18f252
+DEVICE=18f25K22
 UNIT=SDCard
 UNIT_FILE=main
 

@@ -1,73 +1,101 @@
-/*
- * main.c
- *
- *  Created on: 10 de nov de 2015
- *      Author: cuki
- */
-
 #include <18F25K22.h>
-
-#fuses HSH,NOPLLEN
-#use delay(clock=25MHz)
+#zero_ram
+#fuses HSH, NOPLLEN
+#use delay(clock=25M)
 #use rs232(baud=9600, UART1)
+#use spi(master, mode=0, baud=100000, spi1, force_hw, stream=SPI)
 
-#include <stdlib.h>
+#define _SS PIN_A5
 
-//meda library, a compatable media library is required for FAT.
-#use fast_io(c)
-#define MMCSD_PIN_SCL     PIN_C3 //o
-#define MMCSD_PIN_SDI     PIN_C4 //i
-#define MMCSD_PIN_SDO     PIN_C5 //o
-#define MMCSD_PIN_SELECT  PIN_A5 //o
-//#define MMCSD_SPI_HW  SPI1
+int mmcsd_crc7(int *data, int length) {
+	int i, ibit, c, crc;
 
-//#define MMCSD_SPI_XFER
-#include <mmcsd.c>
+	crc = 0x00;                                             // Set initial value
 
-#include <input.c>
+	for (i = 0; i < length; i++, data++) {
+		c = *data;
+
+		for (ibit = 0; ibit < 8; ibit++) {
+			crc = crc << 1;
+			if ((c ^ crc) & 0x80)
+				crc = crc ^ 0x09;       // ^ is XOR
+			c = c << 1;
+		}
+
+		crc = crc & 0x7F;
+	}
+
+	shift_left(&crc, 1, 1);
+
+	return crc;
+}
+
+int mmcsd_send_cmd(int cmd, long long arg, short g_CRC_enabled) {
+	int packet[6];
+
+	packet[0] = cmd | 0x40;
+	packet[1] = make8(arg, 3);
+	packet[2] = make8(arg, 2);
+	packet[3] = make8(arg, 1);
+	packet[4] = make8(arg, 0);
+
+	if (g_CRC_enabled)
+		packet[5] = mmcsd_crc7(packet, 5);
+	else
+		packet[5] = 0xFF;
+
+	spi_write(packet[0]);
+	spi_write(packet[1]);
+	spi_write(packet[2]);
+	spi_write(packet[3]);
+	spi_write(packet[4]);
+	spi_write(packet[5]);
+
+	return 0;
+}
+
+int mmcsd_get_r1(void) {
+	int response = 0, timeout = 0xFF;
+
+	while (timeout) {
+		response = spi_read(0xFF);
+		if (response != 0xFF)
+			return response;
+		timeout--;
+	}
+
+	return 0xFF;
+}
+
+int mmcsd_go_idle_state(void) {
+	mmcsd_send_cmd(0, 0, TRUE);
+
+	return mmcsd_get_r1();
+}
 
 int main(void) {
 
-	BYTE value, cmd, r;
-	int32 address;
+	long long r;
 
-	printf("\r\n\nex_mmcsd.c\r\n\n");
+	spi_init(SPI, TRUE);
+	printf("\n\rSDCard");
+	delay_ms(15);
 
 	do {
-		r = mmcsd_init();
-		if (r) {
-			printf("\r\nCould not init the MMC/SD!!!!%d", r);
-			delay_ms(1000);
-		}
-	} while (r);
+		delay_ms(15);
+		output_high(_SS);
+		spi_xfer(SPI);
+		spi_xfer(SPI);
+		spi_xfer(SPI);
+		spi_xfer(SPI);
+		output_low(_SS);
+		r = mmcsd_go_idle_state();
+		printf("\n\r%lu", r);
+		delay_ms(500);
+	} while (r == 0xFF);
 
-	mmcsd_print_cid();
+	while (TRUE)
+		;
 
-	while (TRUE) {
-		do {
-			printf("\r\nRead or Write: ");
-			cmd = getc();
-			cmd = toupper(cmd);
-			putc(cmd);
-		} while ((cmd != 'R') && (cmd != 'W'));
-
-		printf("\n\rLocation: ");
-
-		address = gethex();
-		address = (address << 8) + gethex();
-
-		if (cmd == 'R') {
-			mmcsd_read_byte(address, &value);
-			printf("\r\nValue: %X\r\n", value);
-		}
-
-		if (cmd == 'W') {
-			printf("\r\nNew value: ");
-			value = gethex();
-			printf("\n\r");
-			mmcsd_write_byte(address, value);
-			mmcsd_flush_buffer();
-		}
-	}
 	return 0;
 }
