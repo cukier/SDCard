@@ -97,39 +97,60 @@ int mmcsd_get_r1(void) {
 	return 0xFF;
 }
 
-int mmcsd_go_idle_state(short crc_check) {
-	mmcsd_send_cmd(GO_IDLE_STATE, 0, crc_check);
+int mmcsd_get_r2(int *r2) {
 
+	r2[1] = mmcsd_get_r1();
+	r2[0] = spi_read(0xFF);
+	return 0;
+}
+
+int mmcsd_get_r7(int *r7) {
+	int i;
+
+	r7[4] = mmcsd_get_r1();
+
+	for (i = 0; i < 4; i++)
+		r7[3 - i] = spi_read(0xFF);
+
+	return r7[4];
+}
+
+int mmcsd_get_r3(int *r3) {
+	return mmcsd_get_r7(r3);
+}
+
+int mmcsd_go_idle_state(short crc_check) {
+
+	mmcsd_send_cmd(GO_IDLE_STATE, 0, crc_check);
 	return mmcsd_get_r1();
 }
 
 int mmcsd_send_op_cond(short crc_check) {
-	mmcsd_send_cmd(SEND_OP_COND, 0, crc_check);
 
+	mmcsd_send_cmd(SEND_OP_COND, 0, crc_check);
 	return mmcsd_get_r1();
 }
 
 int mmcsd_app_cmd(short crc_check) {
-	mmcsd_send_cmd(APP_CMD, 0, crc_check);
 
+	mmcsd_send_cmd(APP_CMD, 0, crc_check);
+	return mmcsd_get_r1();
+}
+
+int mmcsd_send_if_cond(short crc_check) {
+
+	mmcsd_send_cmd(SEND_IF_COND, 0, crc_check);
 	return mmcsd_get_r1();
 }
 
 int mmcsd_sd_send_op_cond(short crc_check) {
+
 	mmcsd_send_cmd(SD_SEND_OP_COND, 0, crc_check);
-
 	return mmcsd_get_r1();
 }
 
-int mmcsd_sd_send_if_cond(short crc_check) {
-	mmcsd_send_cmd(SEND_IF_COND, 0, crc_check);
-
-	return mmcsd_get_r1();
-}
-
-int mmcsd_init(int *tries) {
-	long long r;
-	int i;
+int mmcsd_init(int *r7) {
+	int i, r;
 
 	output_high(_SS);
 	delay_ms(15);
@@ -150,33 +171,30 @@ int mmcsd_init(int *tries) {
 	do {
 		delay_ms(1);
 		output_low(_SS);
-		r = mmcsd_send_op_cond(TRUE);
+		mmcsd_send_cmd(SEND_IF_COND, 0, TRUE);
+		r = mmcsd_get_r7(r7);
 		output_high(_SS);
 		i++;
 		if (i == 0xFF) {
-			*tries = i;
 			output_high(_SS);
 			return r;
 		}
-//	} while (r & MMCSD_IDLE);
-	} while (r);
+	} while (r == 0);
 
-	output_low(_SS);
-	r = mmcsd_app_cmd(TRUE);
-	r = mmcsd_sd_send_op_cond(TRUE);
-	output_high(_SS);
-
-	return 0;
+	return r;
 }
 
 int main(void) {
-	int t = 0;
+	int r7[4], cont;
 
 	spi_init(SPI, TRUE);
 	printf("\n\rSDCard");
 	delay_ms(15);
 
-	printf("\n\r%u %u", mmcsd_init(&t), t);
+	printf("\n\r%u", mmcsd_init(r7));
+
+	for (cont = 0; cont < 4; ++cont)
+		printf(" %u", r7[cont]);
 
 	while (TRUE)
 		;
