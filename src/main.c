@@ -37,6 +37,11 @@ enum MMCSD_err {
 	RESP_TIMEOUT = 0x80
 };
 
+void mmc_deselect(void) {
+	spi_write(0xFF);
+	output_high(_SS);
+}
+
 int mmcsd_crc7(int *data, int length) {
 	int i, ibit, c, crc;
 
@@ -149,39 +154,56 @@ int mmcsd_sd_send_op_cond(short crc_check) {
 	return mmcsd_get_r1();
 }
 
-int mmcsd_init() {
+int mmcsd_init(int *r7) {
 	int r, i;
 
-	output_high(_SS);
+	mmc_deselect();
 	for (i = 0; i < 10; ++i)
 		spi_read(0xFF);
 
-	delay_us(100);
-	output_low(_SS);
-	r = mmcsd_go_idle_state(TRUE);
-	output_high(_SS);
-
-	for (i = 0; i < 255; ++i) {
-		delay_us(100);
+	i = 0;
+	do {
+		delay_ms(10);
 		output_low(_SS);
+		delay_us(25);
+		r = mmcsd_go_idle_state(TRUE);
+		mmc_deselect();
+		i++;
+		if (i == 0xFF)
+			return RESP_TIMEOUT;
+	} while (!bit_test(r, 0));
+
+	i = 0;
+	do {
+		delay_ms(10);
+		output_low(_SS);
+		delay_us(25);
 		r = mmcsd_send_op_cond(TRUE);
-		if (!(r & 0x01)) {
-			output_high(_SS);
-			return 0;
-		}
-		output_high(_SS);
-	}
+		mmc_deselect();
+		i++;
+		if (i == 0xFF)
+			return RESP_TIMEOUT;
+	} while (bit_test(r, 0));
 
 	return r;
 }
 
 int main(void) {
 
+	int r7[5] = { 0, 0, 0, 0, 0 };
+	int cont;
+
 	spi_init(SPI, TRUE);
 	printf("\n\rSDCard");
 	delay_ms(15);
 
-	printf("\n\r%u", mmcsd_init());
+	if (mmcsd_init(r7) != RESP_TIMEOUT) {
+		printf("\n\r%u", mmcsd_init(r7));
+
+		for (cont = 0; cont < 5; ++cont)
+			printf(" %u", r7[cont]);
+	} else
+		printf("\n\rTime out!");
 
 	while (TRUE)
 		;
