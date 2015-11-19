@@ -149,52 +149,39 @@ int mmcsd_sd_send_op_cond(short crc_check) {
 	return mmcsd_get_r1();
 }
 
-int mmcsd_init(int *r7) {
-	int i, r;
+int mmcsd_init() {
+	int r, i;
 
 	output_high(_SS);
-	delay_ms(15);
-	i = 0;
-	do {
-		delay_ms(1);
-		output_low(_SS);
-		r = mmcsd_go_idle_state(TRUE);
-		output_high(_SS);
-		i++;
-		if (i == 0xFF) {
-			output_high(_SS);
-			return r;
-		}
-	} while (!bit_test(r, 0));
+	for (i = 0; i < 10; ++i)
+		spi_read(0xFF);
 
-	i = 0;
-	do {
-		delay_ms(1);
+	delay_us(100);
+	output_low(_SS);
+	r = mmcsd_go_idle_state(TRUE);
+	output_high(_SS);
+
+	for (i = 0; i < 255; ++i) {
+		delay_us(100);
 		output_low(_SS);
-		mmcsd_send_cmd(SEND_IF_COND, 0, TRUE);
-		r = mmcsd_get_r7(r7);
-		output_high(_SS);
-		i++;
-		if (i == 0xFF) {
+		r = mmcsd_send_op_cond(TRUE);
+		if (!(r & 0x01)) {
 			output_high(_SS);
-			return r;
+			return 0;
 		}
-	} while (r == 0);
+		output_high(_SS);
+	}
 
 	return r;
 }
 
 int main(void) {
-	int r7[4], cont;
 
 	spi_init(SPI, TRUE);
 	printf("\n\rSDCard");
 	delay_ms(15);
 
-	printf("\n\r%u", mmcsd_init(r7));
-
-	for (cont = 0; cont < 4; ++cont)
-		printf(" %u", r7[cont]);
+	printf("\n\r%u", mmcsd_init());
 
 	while (TRUE)
 		;
