@@ -39,6 +39,10 @@ enum MMCSD_err {
 	RESP_TIMEOUT = 0x80
 };
 
+int g_mmcsd_buffer[MMCSD_MAX_BLOCK_SIZE];
+long long g_mmcsdBufferAddress;
+short g_MMCSDBufferChanged;
+
 void mmcsd_deselect(void) {
 	spi_write(0xFF);
 	output_high(_SS);
@@ -232,8 +236,8 @@ int mmcsd_init(int *r7) {
 	return r;
 }
 
-int mmcsd_read_single_block(long long address) {
-	mmcsd_send_cmd(READ_SINGLE_BLOCK, address);
+int mmcsd_read_single_block(long long address, short g_CRC_enabled) {
+	mmcsd_send_cmd(READ_SINGLE_BLOCK, address, g_CRC_enabled);
 
 	return mmcsd_get_r1();
 }
@@ -249,13 +253,33 @@ int mmcsd_wait_for_token(int token) {
 	return r1;
 }
 
+long mmcsd_crc16(int *data, int length) {
+	int i, ibit, c;
+	long crc;
+
+	crc = 0x0000;
+
+	for (i = 0; i < length; i++, data++) {
+		c = *data;
+		for (ibit = 0; ibit < 8; ibit++) {
+			crc = crc << 1;
+			if ((c ^ crc) & 0x8000)
+				crc = crc ^ 0x1021;
+			c = c << 1;
+		}
+		crc = crc & 0x7FFF;
+	}
+	shift_left(&crc, 2, 1);
+	return crc;
+}
+
 int mmcsd_read_block(long long address, long size, int *ptr,
 		short g_CRC_enabled) {
 	int ec;
 	long i;
 
 	mmcsd_select();
-	ec = mmcsd_read_single_block(address);
+	ec = mmcsd_read_single_block(address, g_CRC_enabled);
 	if (ec != MMCSD_GOODEC) {
 		mmcsd_deselect();
 		return ec;
@@ -271,7 +295,7 @@ int mmcsd_read_block(long long address, long size, int *ptr,
 		ptr[i] = spi_read(0xFF);
 
 	if (g_CRC_enabled) {
-		if (make16(MMCSD_SPI_XFER(0xFF), MMCSD_SPI_XFER(0xFF))
+		if (make16(spi_read(0xFF), spi_read(0xFF))
 				!= mmcsd_crc16(g_mmcsd_buffer, MMCSD_MAX_BLOCK_SIZE)) {
 			mmcsd_deselect();
 			return MMCSD_CRC_ERR;
@@ -285,23 +309,151 @@ int mmcsd_read_block(long long address, long size, int *ptr,
 	return MMCSD_GOODEC;
 }
 
+int mmcsd_write_single_block(long long address, short g_CRC_enabled) {
+	mmcsd_send_cmd(WRITE_BLOCK, address, g_CRC_enabled);
+
+	return mmcsd_get_r1();
+}
+
+int mmcsd_write_block(long long address, long size, int *ptr,
+		short g_CRC_enabled) {
+	int ec;
+	long i;
+
+	mmcsd_select();
+	ec = mmcsd_write_single_block(address, g_CRC_enabled);
+	if (ec != MMCSD_GOODEC) {
+		mmcsd_deselect();
+		return ec;
+	}
+
+	spi_write(DATA_START_TOKEN);
+
+	for (i = 0; i < size; i += 1) {
+		spi_write(ptr[i]);
+	}
+
+	if (g_CRC_enabled)
+		spi_write(mmcsd_crc16(ptr, size));
+	else {
+		spi_write(0xFF);
+		spi_write(0xFF);
+	}
+
+	ec = mmcsd_get_r1();
+	if (ec & 0x0A) {
+		mmcsd_deselect();
+		return ec;
+	}
+
+	while (spi_read(0xFF) == 0)
+		;
+	mmcsd_deselect();
+
+	return MMCSD_GOODEC;
+}
+
+int mmcsd_flush_buffer(short g_CRC_enabled) {
+	if (g_MMCSDBufferChanged) {
+		g_MMCSDBufferChanged = FALSE;
+		return (mmcsd_write_block(g_mmcsdBufferAddress, MMCSD_MAX_BLOCK_SIZE,
+				g_mmcsd_buffer, g_CRC_enabled));
+	}
+	return (0);
+}
+
+int mmcsd_load_buffer(short g_CRC_enabled) {
+	g_MMCSDBufferChanged = FALSE;
+	return (mmcsd_read_block(g_mmcsdBufferAddress, MMCSD_MAX_BLOCK_SIZE,
+			g_mmcsd_buffer, g_CRC_enabled));
+}
+
+int mmcsd_move_buffer(long long new_addr, short g_CRC_enabled) {
+	int ec = MMCSD_GOODEC;
+	long long new_block;
+
+	new_block = new_addr - (new_addr % MMCSD_MAX_BLOCK_SIZE);
+
+	if (g_mmcsdBufferAddress != new_block) {
+		if (g_MMCSDBufferChanged) {
+			ec = mmcsd_flush_buffer(g_CRC_enabled);
+			if (ec != MMCSD_GOODEC)
+				return ec;
+			g_MMCSDBufferChanged = FALSE;
+		}
+		g_mmcsdBufferAddress = new_block;
+		ec = mmcsd_load_buffer(g_CRC_enabled);
+	}
+
+	return ec;
+}
+
+int mmcsd_write_byte(long long addr, int data, short g_CRC_enabled) {
+	int ec;
+	ec = mmcsd_move_buffer(addr, g_CRC_enabled);
+	if (ec != MMCSD_GOODEC)
+		return ec;
+
+	g_mmcsd_buffer[addr % MMCSD_MAX_BLOCK_SIZE] = data;
+
+	g_MMCSDBufferChanged = TRUE;
+
+	return MMCSD_GOODEC;
+}
+
+int mmcsd_write_data(long long address, long size, int *ptr,
+		short g_CRC_enabled) {
+	int ec;
+	long i;
+
+	for (i = 0; i < size; i++) {
+		ec = mmcsd_write_byte(address++, *ptr++, g_CRC_enabled);
+		if (ec != MMCSD_GOODEC)
+			return ec;
+	}
+
+	return MMCSD_GOODEC;
+}
+
 int main(void) {
 
 	int r7[5] = { 0, 0, 0, 0, 0 };
 	int cont, r;
+	int data[30];
 
 	spi_init(SPI, TRUE);
 	printf("\n\rSDCard");
 	delay_ms(15);
 
 	r = mmcsd_init(r7);
-	if (r != RESP_TIMEOUT) {
+	if (r != RESP_TIMEOUT && r != 0xFF) {
 		printf("\n\r%u === ", r);
-
 		for (cont = 0; cont < 5; ++cont)
 			printf(" %x", r7[4 - cont]);
+		printf("\n\rCartão inicializdo com sucesso!!");
+		printf("\n\rTeste de Leirura");
+		r = mmcsd_read_block(0, 25, data, false);
+		printf("\t0x%X\t", r);
+		if (r == 0) {
+			printf(" Sucesso!\n\r");
+			for (cont = 0; cont < 25; ++cont)
+				printf(" 0x%X", data[cont]);
+		} else
+			printf(" Falha na Leitura");
+		printf("\n\rTeste de Escrita de 1 byte");
+		r = mmcsd_write_byte(0, 0x25, false);
+		printf("\t0x%X\t", r);
+		r = mmcsd_flush_buffer(FALSE);
+		printf("\t0x%X\t", r);
+		if (r == 0) {
+			printf(" Sucesso!\n\r");
+			mmcsd_read_block(0, 25, data, false);
+			for (cont = 0; cont < 25; ++cont)
+				printf(" 0x%X", data[cont]);
+		} else
+			printf(" Falha na Escrita");
 	} else
-		printf("\n\rTime out!");
+		printf("\n\rCartão não presente ou sem resposta do cartão!");
 
 	while (TRUE)
 		;
