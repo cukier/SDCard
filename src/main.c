@@ -3,7 +3,7 @@
 #fuses HSH, NOPLLEN
 #use delay(clock=25M)
 #use rs232(baud=9600, UART1)
-#use spi(master, mode=0, baud=100000, spi1, force_hw, stream=SPI)
+#use spi(master, mode=0, baud=400000, spi1, force_hw, stream=SPI)
 
 #define GO_IDLE_STATE 0
 #define SEND_OP_COND 1
@@ -23,6 +23,8 @@
 #define IDLE_TOKEN 0x01
 #define DATA_START_TOKEN 0xFE
 
+#define MMCSD_MAX_BLOCK_SIZE 512
+
 #define _SS PIN_A5
 
 enum MMCSD_err {
@@ -38,7 +40,7 @@ enum MMCSD_err {
 };
 
 void mmcsd_deselect(void) {
-//	spi_write(0xFF);
+	spi_write(0xFF);
 	output_high(_SS);
 }
 
@@ -159,6 +161,25 @@ int mmcsd_sd_send_op_cond(short crc_check) {
 	return mmcsd_get_r1();
 }
 
+int mmcsd_sd_send_cmd(int cmd, long long arg, short crc_check, int *r7) {
+
+	mmcsd_send_cmd(cmd, arg, crc_check);
+	return mmcsd_get_r7(r7);
+}
+
+int mmcsd_app_send_op_cond(long long arg, short crc_check) {
+
+	mmcsd_app_cmd(crc_check);
+	mmcsd_send_cmd(41, arg, crc_check);
+	return mmcsd_get_r1();
+}
+
+int mmcsd_read_ocr(short crc_check, int *r3) {
+
+	mmcsd_send_cmd(READ_OCR, 0, crc_check);
+	return mmcsd_get_r3(r3);
+}
+
 int mmcsd_init(int *r7) {
 	int r, i;
 
@@ -166,17 +187,102 @@ int mmcsd_init(int *r7) {
 	for (i = 0; i < 10; ++i)
 		spi_read(0xFF);
 
-	delay_us(300);
+	delay_ms(10);
 	mmcsd_select();
 	r = mmcsd_go_idle_state(TRUE);
 	mmcsd_deselect();
 
-	delay_us(300);
-	mmcsd_select();
-	r = mmcsd_send_op_cond(TRUE);
-	mmcsd_deselect();
+	if (r != 0x01)
+		return 0xFF;
+
+	i = 0;
+	do {
+		delay_ms(10);
+		mmcsd_select();
+		r = mmcsd_sd_send_cmd(SEND_IF_COND, 0x1AA, TRUE, r7);
+		mmcsd_deselect();
+		i++;
+		if (i == 0xFF)
+			return RESP_TIMEOUT;
+	} while (make16(r7[1], r7[0]) != 0x1AA);
+
+	i = 0;
+	do {
+		delay_ms(10);
+		mmcsd_select();
+		r = mmcsd_app_send_op_cond(0x40000000, TRUE);
+		mmcsd_deselect();
+		i++;
+		if (i == 0xFF)
+			return RESP_TIMEOUT;
+	} while (r != 0);
+
+	i = 0;
+	do {
+		delay_ms(10);
+		mmcsd_select();
+		mmcsd_send_cmd(CRC_ON_OFF, 0, TRUE);
+		r = mmcsd_get_r7(r7);
+		mmcsd_deselect();
+		i++;
+		if (i == 0xFF)
+			return RESP_TIMEOUT;
+	} while (bit_test(r, 0));
 
 	return r;
+}
+
+int mmcsd_read_single_block(long long address) {
+	mmcsd_send_cmd(READ_SINGLE_BLOCK, address);
+
+	return mmcsd_get_r1();
+}
+
+int mmcsd_wait_for_token(int token) {
+	int r1;
+
+	r1 = mmcsd_get_r1();
+
+	if (r1 == token)
+		return MMCSD_GOODEC;
+
+	return r1;
+}
+
+int mmcsd_read_block(long long address, long size, int *ptr,
+		short g_CRC_enabled) {
+	int ec;
+	long i;
+
+	mmcsd_select();
+	ec = mmcsd_read_single_block(address);
+	if (ec != MMCSD_GOODEC) {
+		mmcsd_deselect();
+		return ec;
+	}
+
+	ec = mmcsd_wait_for_token(DATA_START_TOKEN);
+	if (ec != MMCSD_GOODEC) {
+		mmcsd_deselect();
+		return ec;
+	}
+
+	for (i = 0; i < size; i += 1)
+		ptr[i] = spi_read(0xFF);
+
+	if (g_CRC_enabled) {
+		if (make16(MMCSD_SPI_XFER(0xFF), MMCSD_SPI_XFER(0xFF))
+				!= mmcsd_crc16(g_mmcsd_buffer, MMCSD_MAX_BLOCK_SIZE)) {
+			mmcsd_deselect();
+			return MMCSD_CRC_ERR;
+		}
+	} else {
+		spi_write(0xFF);
+		spi_write(0xFF);
+	}
+	mmcsd_deselect();
+
+	return MMCSD_GOODEC;
 }
 
 int main(void) {
@@ -190,10 +296,10 @@ int main(void) {
 
 	r = mmcsd_init(r7);
 	if (r != RESP_TIMEOUT) {
-		printf("\n\r%u", r);
+		printf("\n\r%u === ", r);
 
 		for (cont = 0; cont < 5; ++cont)
-			printf(" %u", r7[cont]);
+			printf(" %x", r7[4 - cont]);
 	} else
 		printf("\n\rTime out!");
 
