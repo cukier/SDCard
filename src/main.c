@@ -27,7 +27,8 @@
 #define MMCSD_MAX_BLOCK_SIZE	512
 #define BUFFER_SIZE				MMCSD_MAX_BLOCK_SIZE
 
-#define _SS PIN_A5
+#define _SS		PIN_A5
+#define MMC_DI	PIN_C5
 
 enum MMCSD_err {
 	MMCSD_GOODEC = 0,
@@ -273,7 +274,7 @@ int mmcsd_read_block(long long address, int *data, long size) {
 
 int mmcsd_write_single_block(long long address) {
 
-	mmcsd_send_cmd(READ_SINGLE_BLOCK, address, FALSE);
+	mmcsd_send_cmd(WRITE_BLOCK, address, FALSE);
 	return mmcsd_get_r1();
 }
 
@@ -314,13 +315,13 @@ int mmcsd_write_block(long long address, long size, int *data, int *err) {
 	spi_write(DUMMY_BYTE);
 	r1 = mmcsd_get_r1();
 
-	if (r1) {
+	if (r1 & 0x0A) {
 		*err = 2;
 		return r1;
 	}
 
-	while (spi_read(DUMMY_BYTE) == 0)
-		;
+	while (!input(MMC_DI))
+		spi_write(DUMMY_BYTE);
 
 	mmcsd_deselect();
 
