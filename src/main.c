@@ -1,34 +1,56 @@
-#include <18F25K22.h>
-#zero_ram
-#fuses HSH, NOPLLEN
-#use delay(clock=25M)
-#use rs232(baud=9600, UART1)
+#include <18F46K22.h>
+
+//#define USE_PLL
+#define USE_WDT
+#define USE_SPI
+#define USE_SERIAL
+
+#ifdef USE_PLL
+#ifdef USE_WDT
+#fuses  mclr, primary_on, intrc, pllen, wdt, wdt1024
+#else
+#fuses  mclr, primary_on, intrc, pllen, nowdt
+#endif
+#use delay(internal=64MHz)
+#else
+#ifdef USE_WDT
+#fuses  mclr, primary_on, intrc, nopllen, wdt, wdt2048
+#else
+#fuses  mclr, primary_on, intrc, nopllen, nowdt
+#endif
+#use delay(internal=16MHz)
+#endif
+#ifdef USE_SPI
 #use spi(master, mode=0, baud=400000, spi1, force_hw, stream=SPI)
+#endif
+#ifdef USE_SERIAL
+#use rs232(uart1, baud=19200)
+#endif
 
-#define GO_IDLE_STATE 0
-#define SEND_OP_COND 1
-#define SEND_IF_COND 8
-#define SEND_CSD 9
-#define SEND_CID 10
-#define SD_STATUS 13
-#define SEND_STATUS 13
-#define SET_BLOCKLEN 16
-#define READ_SINGLE_BLOCK 17
-#define WRITE_BLOCK 24
-#define SD_SEND_OP_COND 41
-#define APP_CMD 55
-#define READ_OCR 58
-#define CRC_ON_OFF 59
+#define GO_IDLE_STATE			0
+#define SEND_OP_COND			1
+#define SEND_IF_COND			8
+#define SEND_CSD				9
+#define SEND_CID				10
+#define SD_STATUS				13
+#define SEND_STATUS				13
+#define SET_BLOCKLEN			16
+#define READ_SINGLE_BLOCK		17
+#define WRITE_BLOCK				24
+#define SD_SEND_OP_COND			41
+#define APP_CMD					55
+#define READ_OCR				58
+#define CRC_ON_OFF				59
 
-#define IDLE_TOKEN			0x01
-#define DATA_START_TOKEN	0xFE
-#define DUMMY_BYTE			0xFF
+#define IDLE_TOKEN				0x01
+#define DATA_START_TOKEN		0xFE
+#define DUMMY_BYTE				0xFF
 
 #define MMCSD_MAX_BLOCK_SIZE	512
 #define BUFFER_SIZE				MMCSD_MAX_BLOCK_SIZE
 
-#define _SS		PIN_A5
-#define MMC_DI	PIN_C5
+#define _SS						PIN_A5
+#define MMC_DI					PIN_C5
 
 enum MMCSD_err {
 	MMCSD_GOODEC = 0,
@@ -48,7 +70,6 @@ void mmcsd_deselect(void) {
 }
 
 void mmcsd_select(void) {
-
 	output_low(_SS);
 }
 

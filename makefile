@@ -1,21 +1,44 @@
-CC=ccsc
-PK2=pk2cmd
+CC = ccsc
+PK2 = pk2cmd
 
-DEVICE=18f25K22
-UNIT=SDCard
-UNIT_FILE=main
+DEVICE = PIC18F46K22
 
-CFLAGS=+FH +ES +J +DC +LN -Z +DF +Y=9 +STDOUT +EA
-PK2FLAGS=-E -PPIC$(DEVICE) -M -R -J -F
+SRC = src
+OUT = Debug
+REL = Release
 
-all: $(UNIT)
+UNIT = SDCARD
+UINT_FILE = main
 
-$(UNIT): src/$(UNIT_FILE).c
-	$(CC) src/$(UNIT_FILE).c $(CFLAGS)
-	mv src/*.ccspjt src/*.cof src/*.err src/*.esym src/*.hex src/*.lst src/*.sym src/*.xsym Debug
+OBJS += *.ccspjt *.cof *.err *.esym *.hex *.lst *.xsym
+MOBJ = $(OBJS:%=$(SRC)/%)
 
-burn :
-	$(PK2) $(PK2FLAGS) Debug/$(UNIT_FILE).hex
+ifeq ($(DEVICE), PIC18F46K22)
+CFLAGS += +FH
+endif
+ifeq ($(DEVICE), PIC18F25K22)
+CFLAGS += +FH
+endif
 
+CFLAGS += +LN -T -A -M -Z +DF +Y=9 +STDOUT +EA
+PK2DELFLAGS += -E -P$(DEVICE)
+PK2FLAGS +=$(PK2DELFLAGS) -M -R -J -F
+
+all: clean $(UNIT)
+
+$(UNIT): $(SRC)/$(UINT_FILE).c
+	$(CC) $(CFLAGS) $(DFLAGS) $<
+	[[ -d $(OUT) ]] || mkdir $(OUT)
+	mv $(MOBJ) $(OUT)
+	
+burn: $(OUT)/$(UINT_FILE).hex
+	$(PK2) $(PK2FLAGS) $<
+	
+erase:
+	$(PK2) $(PK2DELFLAGS)
+	
 clean:
-	rm Debug/*
+	rm -Rvf $(OUT)
+	
+clean_release:
+	rm -Rvf $(REL)
