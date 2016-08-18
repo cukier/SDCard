@@ -1,4 +1,5 @@
 #include <18F46K22.h>
+#include <STDLIB.H>
 
 #define USE_PLL
 //#define USE_WDT
@@ -21,7 +22,7 @@
 #use delay(internal=16MHz)
 #endif
 #ifdef USE_SPI
-#use spi(master, mode=0, baud=20000, spi1, stream=SPI)
+#use spi(master, mode=0, baud=40000000, spi1, stream=SPI)
 #endif
 #ifdef USE_SERIAL
 #use rs232(uart1, baud=19200)
@@ -29,33 +30,33 @@
 
 #include "sdcard.c"
 
-#define BUFFER_SIZE	8
+#define BUFFER_SIZE		64
+#define PATTERN_SIZE	32
 
-void print_array(int *array, long size) {
+int gen_pattern(int *ptr, long size, long rnd) {
 	long cont;
 
-	for (cont = 0; cont < BUFFER_SIZE; ++cont) {
-#ifdef USE_WDT
-		restart_wdt();
-#endif
-		if (!(cont % 8))
-			printf("\n\r");
-		printf(" %03lu:0x%X", cont, array[cont]);
+	for (cont = 0; cont < rnd; ++cont)
+		rand();
+
+	for (cont = 0; cont < size; ++cont) {
+		ptr[cont] = rand();
 	}
 
-	return;
+	return 0;
 }
 
 int main(void) {
 
 	long cont, tries;
-	int r7[5] = { 0 }, data[BUFFER_SIZE] = { 0 }, teste[BUFFER_SIZE] = { 'H',
-			'e', 'l', 'l', 'o', ' ', 'i', 'o' }, r, err;
+	int r7[5] = { 0 }, data[BUFFER_SIZE] = { 0 }, teste[PATTERN_SIZE] = { 0 },
+			r, err;
 
 	spi_init(SPI, TRUE);
 	printf("\n\rSDCard\n\r");
 	delay_ms(15);
 	r = mmcsd_init(r7);
+	spi_init(SPI, FALSE);
 
 	if (r != RESP_TIMEOUT && r != 0xFF) {
 		printf("%u === \n\r", r);
@@ -69,7 +70,9 @@ int main(void) {
 	tries = 0xFF;
 	do {
 		r = 0xFF;
+		spi_init(SPI, TRUE);
 		r = mmcsd_read_block(0, data, BUFFER_SIZE);
+		spi_init(SPI, FALSE);
 
 		if (r) {
 			tries--;
@@ -79,36 +82,47 @@ int main(void) {
 
 	if (tries) {
 		if (!r) {
-			printf("Lido 0x%X\n\r", tries);
-			for (cont = 0; cont < BUFFER_SIZE; ++cont)
-				printf("%c ", data[cont]);
+			printf("Lido\n\r  ");
+			for (cont = 0; cont < BUFFER_SIZE; ++cont) {
+				if (!(cont % 8) && cont != 0)
+					printf("\n\r  ");
+				printf("%2x ", data[cont]);
+			}
 			printf("\n\r");
 		}
-	}
+	} else
+		printf("Erro ao tentar ler\n\r");
 
-	printf("1: 0x%X 0x%X\n\r", tries, r);
+	printf("1: 0x%X 0x%X\n\r\n\r", tries, r);
 
+	gen_pattern(teste, PATTERN_SIZE, rand());
 	tries = 0xFF;
 	do {
 		r = 0xFF;
-		r = mmcsd_write_block(0, BUFFER_SIZE, teste, &err);
+		spi_init(SPI, TRUE);
+		r = mmcsd_write_block(0, PATTERN_SIZE, teste, &err);
+		spi_init(SPI, FALSE);
 
 		if (r) {
 			tries--;
 			delay_ms(100);
 		}
-	} while (r != 0 & tries != 0);
-
-	printf("2: 0x%X 0x%X\n\r", tries, r);
+	} while (r != 0 && tries != 0);
 
 	if (tries) {
 		if (!r) {
-			printf("Escrito 0x%X\n\r", tries);
+			printf("Escrito\n\r  ");
+			for (cont = 0; cont < PATTERN_SIZE; ++cont) {
+				if (!(cont % 8) && cont != 0)
+					printf("\n\r  ");
+				printf("%02x ", teste[cont]);
+			}
+			printf("\n\r");
 		}
 	} else
 		printf("Erro ao tentar escrever\n\r");
 
-	printf("Fim 0x%X\n\r", tries);
+	printf("2: 0x%X 0x%X\n\r\n\r", tries, r);
 
 	while (TRUE)
 		;
