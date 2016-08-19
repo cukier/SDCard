@@ -415,7 +415,7 @@ short mmcsd_write_card(long long address, int *data, long size) {
 }
 
 /****************************************************
- * mmcsd_init inicializa o buffer de entrada e o
+ * mmcsd_init inicializa o buffer de gravacao e o
  * cartao sd
  *
  * @return TRUE se sucesso, FALSE se erro
@@ -440,4 +440,30 @@ short mmcsd_init(void) {
 	}
 
 	return mmcsd_test_card();
+}
+
+/****************************************************
+ * mmcsd_read executa a leitura bufferizada do cartao
+ * sd
+ *
+ * @param address - endereco qual se quer ler
+ * @param *data	- vetor onde sera escrita a leitura
+ * @param size - tamanho do vetor
+ * @return TRUE se sucesso, FALSE se erro
+ */
+short mmcsd_read(long long address, int *data, long size) {
+	int read_out[MMCSD_MAX_BLOCK_SIZE] = { 0 }, r;
+	long block, offset, cont;
+
+	block = (long) (address / MMCSD_MAX_BLOCK_SIZE);
+	offset = (long) (addresss - (block * MMCSD_MAX_BLOCK_SIZE));
+	r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
+
+	if (!r)
+		return FALSE;
+
+	for (cont = 0; cont < size; ++cont)
+		data[cont] = read_out[cont + offset];
+
+	return TRUE;
 }
