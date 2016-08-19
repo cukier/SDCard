@@ -26,12 +26,22 @@
 #define IDLE_TOKEN				0x01
 #define DATA_START_TOKEN		0xFE
 #define DUMMY_BYTE				0xFF
+#define OP_CONDITION			0x40000000
+#define IF_CONDITION_PASS		0x1AA
 
+#ifndef MMCSD_MAX_BLOCK_SIZE
 #define MMCSD_MAX_BLOCK_SIZE	512
+#endif
+
 #define MMCSD_BUFFER_SIZE		MMCSD_MAX_BLOCK_SIZE
 
+#ifndef _SS
 #define _SS						PIN_A5
+#endif
+
+#ifndef MMC_DI
 #define MMC_DI					PIN_C5
+#endif
 
 enum MMCSD_err {
 	MMCSD_GOODEC = 0,
@@ -44,6 +54,8 @@ enum MMCSD_err {
 	MMCSD_PARAM_ERR = 0x40,
 	RESP_TIMEOUT = 0x80
 };
+
+//extern int mmcsd_buffer[MMCSD_BUFFER_SIZE];
 
 extern void mmcsd_deselect(void);
 extern void mmcsd_select(void);

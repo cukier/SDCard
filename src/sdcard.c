@@ -157,6 +157,7 @@ int mmcsd_init(int *r7) {
 
 	delay_ms(10);
 	mmcsd_select();
+	r = 0;
 	r = mmcsd_go_idle_state(TRUE);
 	mmcsd_deselect();
 
@@ -167,18 +168,20 @@ int mmcsd_init(int *r7) {
 	do {
 		delay_ms(10);
 		mmcsd_select();
-		r = mmcsd_sd_send_cmd(SEND_IF_COND, 0x1AA, TRUE, r7);
+		r = 0;
+		r = mmcsd_sd_send_cmd(SEND_IF_COND, IF_CONDITION_PASS, TRUE, r7);
 		mmcsd_deselect();
 		i++;
 		if (i == 0xFF)
 			return RESP_TIMEOUT;
-	} while (make16(r7[1], r7[0]) != 0x1AA);
+	} while (make16(r7[1], r7[0]) != IF_CONDITION_PASS);
 
 	i = 0;
 	do {
 		delay_ms(10);
 		mmcsd_select();
-		r = mmcsd_app_send_op_cond(0x40000000, TRUE);
+		r = 0;
+		r = mmcsd_app_send_op_cond(OP_CONDITION, TRUE);
 		mmcsd_deselect();
 		i++;
 		if (i == 0xFF)
@@ -190,6 +193,7 @@ int mmcsd_init(int *r7) {
 		delay_ms(10);
 		mmcsd_select();
 		mmcsd_send_cmd(CRC_ON_OFF, 0, TRUE);
+		r = 0xFF;
 		r = mmcsd_get_r7(r7);
 		mmcsd_deselect();
 		i++;
@@ -306,9 +310,36 @@ short mmcsd_init_card(void) {
 }
 
 /****************************************************
+ * mmcsd_test_card testa o cartao atravez da funcao
+ * de inicializacao
+ *
+ * @param void
+ * @return TRUE se sucesso, FALSE se erro
+ */
+short mmcsd_test_card(void) {
+	int tries;
+	short r;
+
+	tries = 0xFF;
+
+	do {
+		r = FALSE;
+		r = mmcsd_init_card();
+		if (!r) {
+			tries--;
+
+			if (!tries)
+				return FALSE;
+		}
+	} while (!r);
+
+	return TRUE;
+}
+
+/****************************************************
  * mmcsd_read_card le o cartao sd no endereco
  * requisitado e devolve as informacoes no array
- * fornecido, deve ser indicado a quantidade de leituras
+ * fornecido, deve ser indicado o tamanho do array
  *
  * @param addresss - endereco de onde se quer ler
  * @param data - vetor onde sera escrito a leitura
@@ -318,14 +349,8 @@ short mmcsd_init_card(void) {
 short mmcsd_read_card(long long address, int *data, long size) {
 	int tries, r;
 
-#ifdef USE_SPI
-	spi_init(TRUE);
-#endif
-	r = mmcsd_set_blocken(address, size);
-	printf("Set blk en: 0x%02X\n\r", r);
-#ifdef USE_SPI
-	spi_init(FALSE);
-#endif
+	if (!mmcsd_test_card())
+		return FALSE;
 
 	tries = 0xFF;
 	do {
@@ -353,7 +378,7 @@ short mmcsd_read_card(long long address, int *data, long size) {
 /****************************************************
  * mmcsd_write_card escreve no cartao sd, no endereco
  * requisitado as informacoes do array fornecido,
- * deve ser indicado a quantidade de leituras
+ * deve ser indicado o tamanho do array
  *
  * @param addresss - endereco de onde se quer escrever
  * @param data - vetor que deve ser escrito no cartao
@@ -363,14 +388,8 @@ short mmcsd_read_card(long long address, int *data, long size) {
 short mmcsd_write_card(long long address, int *data, long size) {
 	int tries, r;
 
-#ifdef USE_SPI
-	spi_init(TRUE);
-#endif
-	r = mmcsd_set_blocken(address, size);
-	printf("Set blk en: 0x%02X\n\r", r);
-#ifdef USE_SPI
-	spi_init(FALSE);
-#endif
+	if (!mmcsd_test_card())
+		return FALSE;
 
 	tries = 0xFF;
 	do {
