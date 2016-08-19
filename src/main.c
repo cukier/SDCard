@@ -22,7 +22,7 @@
 #use delay(internal=16MHz)
 #endif
 #ifdef USE_SPI
-#use spi(master, mode=0, baud=40000000, spi1, stream=SPI)
+#use spi(master, mode=0, baud=40000000, spi1)
 #endif
 #ifdef USE_SERIAL
 #use rs232(uart1, baud=19200)
@@ -52,11 +52,11 @@ int main(void) {
 	int r7[5] = { 0 }, data[BUFFER_SIZE] = { 0 }, teste[PATTERN_SIZE] = { 0 },
 			r, err;
 
-	spi_init(SPI, TRUE);
+	spi_init(TRUE);
 	printf("\n\rSDCard\n\r");
 	delay_ms(15);
 	r = mmcsd_init(r7);
-	spi_init(SPI, FALSE);
+	spi_init(FALSE);
 
 	if (r != RESP_TIMEOUT && r != 0xFF) {
 		printf("%u === \n\r", r);
@@ -70,9 +70,9 @@ int main(void) {
 	tries = 0xFF;
 	do {
 		r = 0xFF;
-		spi_init(SPI, TRUE);
+		spi_init(TRUE);
 		r = mmcsd_read_block(0, data, BUFFER_SIZE);
-		spi_init(SPI, FALSE);
+		spi_init(FALSE);
 
 		if (r) {
 			tries--;
@@ -99,9 +99,9 @@ int main(void) {
 	tries = 0xFF;
 	do {
 		r = 0xFF;
-		spi_init(SPI, TRUE);
+		spi_init(TRUE);
 		r = mmcsd_write_block(0, PATTERN_SIZE, teste, &err);
-		spi_init(SPI, FALSE);
+		spi_init(FALSE);
 
 		if (r) {
 			tries--;

@@ -290,7 +290,7 @@ int mmcsd_test(void) {
 	int r7[5] = { 0 };
 	int r;
 
-	spi_init(SPI, TRUE);
+	spi_init(TRUE);
 	delay_ms(15);
 
 	r = mmcsd_init(r7);
