@@ -66,7 +66,7 @@ extern int mmcsd_read_single_block(long long address);
 extern int mmcsd_set_blocken(long long address, long size);
 extern int mmcsd_read_block(long long address, int *data, long size);
 extern int mmcsd_write_single_block(long long address);
-extern int mmcsd_write_block(long long address, long size, int *data, int *err);
-extern int mmcsd_test(void);
+extern int mmcsd_write_block(long long address, long size, int *data);
+extern short mmcsd_read_card(long long address, int *data, long size);
 
 #endif /* SDCARD_H_ */
