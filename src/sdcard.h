@@ -32,8 +32,11 @@
 #ifndef MMCSD_MAX_BLOCK_SIZE
 #define MMCSD_MAX_BLOCK_SIZE	512
 #endif
-
 #define MMCSD_BUFFER_SIZE		MMCSD_MAX_BLOCK_SIZE
+#ifndef MMCSD_BUFFER_POS_ADDR
+#define MMCSD_BUFFER_POS_ADDR	0x100
+#endif
+#define MMCSD_BUFFER_ADDR		MMCSD_BUFFER_POS_ADDR + 2
 
 #ifndef _SS
 #define _SS						PIN_A5
@@ -55,7 +58,8 @@ enum MMCSD_err {
 	RESP_TIMEOUT = 0x80
 };
 
-//extern int mmcsd_buffer[MMCSD_BUFFER_SIZE];
+extern int mmcsd_buffer[MMCSD_BUFFER_SIZE];
+extern long mmcsd_buffer_pos;
 
 extern void mmcsd_deselect(void);
 extern void mmcsd_select(void);

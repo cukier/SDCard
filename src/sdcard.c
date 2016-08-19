@@ -413,3 +413,31 @@ short mmcsd_write_card(long long address, int *data, long size) {
 
 	return (r == 0);
 }
+
+/****************************************************
+ * mmcsd_init inicializa o buffer de entrada e o
+ * cartao sd
+ *
+ * @return TRUE se sucesso, FALSE se erro
+ */
+short mmcsd_init(void) {
+	long cont;
+
+	mmcsd_buffer_pos = 0xFFFF;
+	mmcsd_buffer_pos = make16(read_eeprom(MMCSD_BUFFER_POS_ADDR),
+			read_eeprom(MMCSD_BUFFER_POS_ADDR + 1));
+
+	if (mmcsd_buffer == 0xFFFF) {
+		write_eeprom(MMCSD_BUFFER_POS_ADDR, 0);
+		write_eeprom(MMCSD_BUFFER_POS_ADDR + 1, 0);
+		mmcsd_buffer_pos = 0;
+
+		for (cont = 0; cont < MMCSD_BUFFER_SIZE; ++cont)
+			mmcsd_buffer[cont] = 0;
+	} else {
+		for (cont = 0; cont < mmcsd_buffer; ++cont)
+			mmcsd_buffer[cont] = read_eeprom(MMCSD_BUFFER_ADDR + cont);
+	}
+
+	return mmcsd_test_card();
+}
