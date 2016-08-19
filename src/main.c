@@ -50,7 +50,7 @@ int main(void) {
 
 	long cont, tries;
 	int r7[5] = { 0 }, data[BUFFER_SIZE] = { 0 }, teste[PATTERN_SIZE] = { 0 },
-			r, err;
+			r;
 
 	spi_init(TRUE);
 	printf("\n\rSDCard\n\r");
@@ -76,7 +76,7 @@ int main(void) {
 
 		if (r) {
 			tries--;
-			delay_ms(100);
+			delay_ms(10);
 		}
 	} while (tries & r);
 
@@ -100,12 +100,12 @@ int main(void) {
 	do {
 		r = 0xFF;
 		spi_init(TRUE);
-		r = mmcsd_write_block(0, PATTERN_SIZE, teste, &err);
+		r = mmcsd_write_block(0, PATTERN_SIZE, teste);
 		spi_init(FALSE);
 
 		if (r) {
 			tries--;
-			delay_ms(100);
+			delay_ms(10);
 		}
 	} while (r != 0 && tries != 0);
 
