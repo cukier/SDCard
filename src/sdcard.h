@@ -58,8 +58,8 @@ enum MMCSD_err {
 	RESP_TIMEOUT = 0x80
 };
 
-extern int mmcsd_buffer[MMCSD_BUFFER_SIZE];
-extern long mmcsd_buffer_pos;
+static int mmcsd_buffer[MMCSD_BUFFER_SIZE];
+static long mmcsd_buffer_pos;
 
 extern void mmcsd_deselect(void);
 extern void mmcsd_select(void);
@@ -77,12 +77,18 @@ extern int mmcsd_sd_send_op_cond(short crc_check);
 extern int mmcsd_sd_send_cmd(int cmd, long long arg, short crc_check, int *r7);
 extern int mmcsd_app_send_op_cond(long long arg, short crc_check);
 extern int mmcsd_read_ocr(short crc_check, int *r3);
-extern int mmcsd_init(int *r7);
+extern int mmcsd_init_seq(int *r7);
 extern int mmcsd_read_single_block(long long address);
 extern int mmcsd_set_blocken(long long address, long size);
 extern int mmcsd_read_block(long long address, int *data, long size);
 extern int mmcsd_write_single_block(long long address);
 extern int mmcsd_write_block(long long address, long size, int *data);
+extern short mmcsd_init_card(void);
+extern short mmcsd_test_card(void);
 extern short mmcsd_read_card(long long address, int *data, long size);
+extern short mmcsd_write_card(long long address, int *data, long size);
+extern short mmcsd_init(void);
+extern short mmcsd_read(long long address, int *data, long size);
+extern short mmcsd_write(long long address, int *data, long size);
 
 #endif /* SDCARD_H_ */

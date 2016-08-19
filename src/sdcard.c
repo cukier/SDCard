@@ -148,7 +148,7 @@ int mmcsd_read_ocr(short crc_check, int *r3) {
 	return mmcsd_get_r3(r3);
 }
 
-int mmcsd_init(int *r7) {
+int mmcsd_init_seq(int *r7) {
 	int r, i;
 
 	mmcsd_deselect();
@@ -301,7 +301,7 @@ short mmcsd_init_card(void) {
 #ifdef USE_SPI
 	spi_init(TRUE);
 #endif
-	r = mmcsd_init(r7);
+	r = mmcsd_init_seq(r7);
 #ifdef USE_SPI
 	spi_init(FALSE);
 #endif
@@ -456,7 +456,7 @@ short mmcsd_read(long long address, int *data, long size) {
 	long block, offset, cont;
 
 	block = (long) (address / MMCSD_MAX_BLOCK_SIZE);
-	offset = (long) (addresss - (block * MMCSD_MAX_BLOCK_SIZE));
+	offset = (long) (address - (block * MMCSD_MAX_BLOCK_SIZE));
 	r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
 
 	if (!r)
@@ -466,4 +466,18 @@ short mmcsd_read(long long address, int *data, long size) {
 		data[cont] = read_out[cont + offset];
 
 	return TRUE;
+}
+
+/****************************************************
+ * mmcsd_write executa a escrita bufferizada do cartao
+ * sd
+ *
+ * @param address - endereco qual se quer escrever
+ * @param *data	- vetor de dados a ser escrito
+ * @param size - tamanho do vetor
+ * @return TRUE se sucesso, FALSE se erro
+ */
+short mmcsd_write(long long address, int *data, long size) {
+
+	return FALSE;
 }
