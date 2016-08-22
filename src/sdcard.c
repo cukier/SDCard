@@ -415,34 +415,6 @@ short mmcsd_write_card(long long address, int *data, long size) {
 }
 
 /****************************************************
- * mmcsd_init inicializa o buffer de gravacao e o
- * cartao sd
- *
- * @return TRUE se sucesso, FALSE se erro
- */
-short mmcsd_init(void) {
-	long cont;
-
-	mmcsd_buffer_pos = 0xFFFF;
-	mmcsd_buffer_pos = make16(read_eeprom(MMCSD_BUFFER_POS_ADDR),
-			read_eeprom(MMCSD_BUFFER_POS_ADDR + 1));
-
-	if (mmcsd_buffer == 0xFFFF) {
-		write_eeprom(MMCSD_BUFFER_POS_ADDR, 0);
-		write_eeprom(MMCSD_BUFFER_POS_ADDR + 1, 0);
-		mmcsd_buffer_pos = 0;
-
-		for (cont = 0; cont < MMCSD_BUFFER_SIZE; ++cont)
-			mmcsd_buffer[cont] = 0;
-	} else {
-		for (cont = 0; cont < mmcsd_buffer; ++cont)
-			mmcsd_buffer[cont] = read_eeprom(MMCSD_BUFFER_ADDR + cont);
-	}
-
-	return mmcsd_test_card();
-}
-
-/****************************************************
  * mmcsd_read executa a leitura bufferizada do cartao
  * sd
  *
@@ -453,17 +425,40 @@ short mmcsd_init(void) {
  */
 short mmcsd_read(long long address, int *data, long size) {
 	int read_out[MMCSD_MAX_BLOCK_SIZE] = { 0 }, r;
-	long block, offset, cont;
+	long block, offset, cont, acum;
 
 	block = (long) (address / MMCSD_MAX_BLOCK_SIZE);
 	offset = (long) (address - (block * MMCSD_MAX_BLOCK_SIZE));
-	r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
 
-	if (!r)
-		return FALSE;
+	if ((offset + size) <= MMCSD_MAX_BLOCK_SIZE) {
+		r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
 
-	for (cont = 0; cont < size; ++cont)
-		data[cont] = read_out[cont + offset];
+		if (!r)
+			return FALSE;
+
+		for (cont = 0; cont < size; ++cont)
+			data[cont] = read_out[cont + offset];
+
+	} else {
+		acum = 0;
+
+		do {
+			r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
+
+			if (!r)
+				return FALSE;
+
+			for (cont = 0; cont < (MMCSD_MAX_BLOCK_SIZE - offset); ++cont) {
+				data[cont + acum] = read_out[cont + offset];
+			}
+
+			acum += (MMCSD_MAX_BLOCK_SIZE - offset);
+			block++;
+			offset =
+					((size - acum) <= MMCSD_MAX_BLOCK_SIZE) ?
+							(2 * MMCSD_MAX_BLOCK_SIZE - size) : 0;
+		} while (acum < size);
+	}
 
 	return TRUE;
 }
@@ -478,6 +473,46 @@ short mmcsd_read(long long address, int *data, long size) {
  * @return TRUE se sucesso, FALSE se erro
  */
 short mmcsd_write(long long address, int *data, long size) {
+	int read_out[MMCSD_MAX_BLOCK_SIZE] = { 0 }, r;
+	long block, offset, cont, acum;
 
-	return FALSE;
+	block = (long) (address / MMCSD_MAX_BLOCK_SIZE);
+	offset = (long) (address - (block * MMCSD_MAX_BLOCK_SIZE));
+
+	if ((offset + size) <= MMCSD_MAX_BLOCK_SIZE) {
+
+		r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
+
+		if (!r)
+			return FALSE;
+
+		for (cont = 0; cont < size; ++cont) {
+			read_out[cont + offset] = data[cont];
+		}
+
+		r = mmcsd_write_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
+
+		if (!r)
+			return FALSE;
+
+	} else {
+		acum = 0;
+
+		do {
+			r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
+
+			if (!r)
+				return FALSE;
+
+			for (cont = 0; cont < (MMCSD_MAX_BLOCK_SIZE - offset); ++cont) {
+				read_out[cont + offset] = data[acum];
+				acum++;
+			}
+
+			block++;
+			offset = ((size - acum) < MMCSD_MAX_BLOCK_SIZE) ? (size - acum) : 0;
+		} while (acum < size);
+	}
+
+	return TRUE;
 }

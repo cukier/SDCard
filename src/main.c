@@ -30,9 +30,10 @@
 
 #include "sdcard.c"
 
-#define BUFFER_SIZE		512
-#define PATTERN_SIZE	8
-#define ADDRESS			16 // 16 * 512 = 8192 <-- endereco onde sera escrito
+#define BUFFER_SIZE		520
+#define PATTERN_SIZE	10
+#define ADDRESS_W		128
+#define ADDRESS_R		8
 
 int gen_pattern(int *ptr, long size, long rnd) {
 	long cont;
@@ -52,12 +53,12 @@ void print_arr(int *arr, long size) {
 
 	for (cont = 0; cont < size; ++cont) {
 		if (!(cont % 16) && cont != 0)
-			printf("\n\r ");
+			printf("\n ");
 		else if (!(cont % 8) && cont != 0)
 			printf(" ");
 		printf("%2x ", arr[cont]);
 	}
-	printf("\n\r");
+	printf("\n");
 }
 
 int main(void) {
@@ -67,27 +68,27 @@ int main(void) {
 	long cont;
 
 	delay_ms(500);
-	printf("\n\rSDCard\n\r");
+	printf("\nSDCard2\n");
 	delay_ms(500);
 
 	gen_pattern(teste, PATTERN_SIZE, rand());
 	r = 0;
-	r = mmcsd_write_card(ADDRESS, teste, PATTERN_SIZE);
+	r = mmcsd_write(ADDRESS_W, teste, PATTERN_SIZE);
 
 	if (r) {
-		printf("Escrito\n\r ");
+		printf("Escrito\n ");
 		print_arr(teste, PATTERN_SIZE);
 	} else
-		printf("Erro ao tentar escrever\n\r");
+		printf("Erro ao tentar escrever\n");
 
 	r = 0;
-	r = mmcsd_read_card(0, data, BUFFER_SIZE);
+	r = mmcsd_read(ADDRESS_R, data, BUFFER_SIZE);
 
 	if (r) {
-		printf("Lido\n\r ");
+		printf("Lido\n ");
 		print_arr(data, BUFFER_SIZE);
 	} else
-		printf("Erro ao tentar ler\n\r");
+		printf("Erro ao tentar ler\n");
 
 	while (TRUE)
 		;
