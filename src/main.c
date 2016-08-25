@@ -29,66 +29,69 @@
 #endif
 
 #include "sdcard.c"
+#include <STDLIBM.H>
 
-#define BUFFER_SIZE		520
-#define PATTERN_SIZE	10
-#define ADDRESS_W		128
-#define ADDRESS_R		8
-
-int gen_pattern(int *ptr, long size, long rnd) {
-	long cont;
-
-	for (cont = 0; cont < rnd; ++cont)
-		rand();
-
-	for (cont = 0; cont < size; ++cont) {
-		ptr[cont] = rand();
-	}
-
-	return 0;
-}
-
-void print_arr(int *arr, long size) {
-	long cont;
-
-	for (cont = 0; cont < size; ++cont) {
-		if (!(cont % 16) && cont != 0)
-			printf("\n ");
-		else if (!(cont % 8) && cont != 0)
-			printf(" ");
-		printf("%2x ", arr[cont]);
-	}
-	printf("\n");
-}
+#define SIZE_R			1024
+#define ADDRESS_R		0
+#define SIZE_W			1050
+#define ADDRESS_W		120
 
 int main(void) {
 
 	int r;
-	int data[BUFFER_SIZE] = { 0 }, teste[PATTERN_SIZE] = { 0 };
+	int *data, *teste;
 	long cont;
 
+#ifndef USE_SPI
+	setup_spi(SPI_MASTER | SPI_L_TO_H | SPI_CLK_DIV_4);
+#endif
+
 	delay_ms(500);
-	printf("\nSDCard2\n");
+	printf("\n\rSDCard2\n\r");
 	delay_ms(500);
 
-	gen_pattern(teste, PATTERN_SIZE, rand());
+	teste = NULL;
+	teste = (int *) malloc((size_t) (SIZE_W * sizeof(int)));
+
+	if (teste == NULL) {
+		printf("NO MEM\n\r");
+		return 1;
+	}
+
+	gen_pattern(teste, SIZE_W, rand());
 	r = 0;
-	r = mmcsd_write(ADDRESS_W, teste, PATTERN_SIZE);
+	r = mmcsd_write(ADDRESS_W, teste, SIZE_W);
 
 	if (r) {
-		printf("Escrito\n ");
-		print_arr(teste, PATTERN_SIZE);
+		printf("Escrito\n\r ");
+#ifdef USE_SPI
+		print_arr(ADDRESS_W, teste, SIZE_W);
+#endif
 	} else
-		printf("Erro ao tentar escrever\n");
+		printf("Erro ao tentar escrever\n\r");
+
+	free(teste);
+
+	data = NULL;
+	data = (int *) malloc((size_t) (SIZE_R * sizeof(int)));
+
+	if (data == NULL) {
+		printf("NO MEM\n\r");
+		return 1;
+	}
 
 	r = 0;
-	r = mmcsd_read(ADDRESS_R, data, BUFFER_SIZE);
+	r = mmcsd_read(ADDRESS_R, data, SIZE_R);
 
 	if (r) {
-		printf("Lido\n ");
-		print_arr(data, BUFFER_SIZE);
+		printf("Lido\n\r ");
+#ifdef USE_SPI
+		print_arr(ADDRESS_R, data, SIZE_R);
+#endif
 	} else
-		printf("Erro ao tentar ler\n");
+		printf("Erro ao tentar ler\n\r");
+
+	free(data);
 
 	while (TRUE)
 		;

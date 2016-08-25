@@ -6,6 +6,40 @@
  */
 
 #include "sdcard.h"
+#include <stdlib.h>
+
+short gen_pattern(int *ptr, long size, long rnd) {
+	long cont;
+
+	if (rnd > 0) {
+		for (cont = 0; cont < rnd; ++cont)
+			rand();
+
+		for (cont = 0; cont < size; ++cont) {
+			ptr[cont] = rand();
+		}
+	} else {
+		for (cont = 0; cont < size; ++cont)
+			ptr[cont] = 0;
+	}
+
+	return TRUE;
+}
+
+void print_arr(long long address, int *arr, long size) {
+	long cont;
+
+	for (cont = 0; cont < size; ++cont) {
+		if (cont == 0)
+			printf("%08lx ", address + cont);
+		if (!(cont % 16) && cont != 0)
+			printf("\n\r %08lx ", address + cont);
+		else if (!(cont % 8) && cont != 0)
+			printf(" ");
+		printf("%2x ", arr[cont]);
+	}
+	printf("\n\r");
+}
 
 void mmcsd_deselect(void) {
 	spi_write(DUMMY_BYTE);
@@ -443,10 +477,14 @@ short mmcsd_read(long long address, int *data, long size) {
 		acum = 0;
 
 		do {
+#ifdef USE_SPI
 			r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
 
 			if (!r)
-				return FALSE;
+			return FALSE;
+#else
+			return TRUE;
+#endif
 
 			for (cont = 0; cont < (MMCSD_MAX_BLOCK_SIZE - offset); ++cont) {
 				data[cont + acum] = read_out[cont + offset];
@@ -474,13 +512,12 @@ short mmcsd_read(long long address, int *data, long size) {
  */
 short mmcsd_write(long long address, int *data, long size) {
 	int read_out[MMCSD_MAX_BLOCK_SIZE] = { 0 }, r;
-	long block, offset, cont, acum;
+	long block, offset, cont, acum, qtd;
 
 	block = (long) (address / MMCSD_MAX_BLOCK_SIZE);
 	offset = (long) (address - (block * MMCSD_MAX_BLOCK_SIZE));
 
 	if ((offset + size) <= MMCSD_MAX_BLOCK_SIZE) {
-
 		r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
 
 		if (!r)
@@ -497,20 +534,40 @@ short mmcsd_write(long long address, int *data, long size) {
 
 	} else {
 		acum = 0;
+		qtd = MMCSD_MAX_BLOCK_SIZE - offset;
 
 		do {
+#ifdef USE_SPI
 			r = mmcsd_read_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
+#else
+			r = gen_pattern(read_out, MMCSD_MAX_BLOCK_SIZE, 0);
+#endif
 
 			if (!r)
 				return FALSE;
 
-			for (cont = 0; cont < (MMCSD_MAX_BLOCK_SIZE - offset); ++cont) {
+			for (cont = 0; cont < qtd; ++cont) {
 				read_out[cont + offset] = data[acum];
 				acum++;
 			}
 
+#ifdef USE_SPI
+			r = mmcsd_write_card(block, read_out, MMCSD_MAX_BLOCK_SIZE);
+
+			if (!r)
+			return FALSE;
+#else
+			print_arr(address, read_out, MMCSD_MAX_BLOCK_SIZE);
+#endif
+
 			block++;
-			offset = ((size - acum) < MMCSD_MAX_BLOCK_SIZE) ? (size - acum) : 0;
+			offset = 0;
+
+			if (acum + MMCSD_MAX_BLOCK_SIZE > size) {
+				qtd = size - acum;
+			} else {
+				qtd = MMCSD_MAX_BLOCK_SIZE;
+			}
 		} while (acum < size);
 	}
 
